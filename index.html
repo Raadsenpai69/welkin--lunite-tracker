@@ -45,15 +45,9 @@
       cursor: pointer;
       transition: 0.2s;
     }
-    .day.checked {
-      background: #4caf50; color: #fff; border-color: #4caf50;
-    }
-    .day.start {
-      background: #2196f3; color: #fff; border-color: #2196f3;
-    }
-    .day.end {
-      background: #1565c0; color: #fff; border-color: #1565c0;
-    }
+    .day.checked { background: #4caf50; color: #fff; border-color: #4caf50; }
+    .day.start   { background: #2196f3; color: #fff; border-color: #2196f3; }
+    .day.end     { background: #1565c0; color: #fff; border-color: #1565c0; }
     .day:hover { transform: scale(1.05); }
     .stats {
       max-width: 600px;
@@ -64,6 +58,12 @@
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     .stats p { margin: 8px 0; }
+    #loading {
+      text-align: center;
+      font-size: 18px;
+      margin-top: 40px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -82,9 +82,10 @@
     <button id="resetBtn">Reset Cycle</button>
   </div>
 
-  <div class="calendar" id="calendar"></div>
+  <div id="loading">Loading data...</div>
+  <div class="calendar" id="calendar" style="display:none;"></div>
 
-  <div class="stats">
+  <div class="stats" id="statsBox" style="display:none;">
     <h2>Statistics</h2>
     <p id="totalChecked">Total Checked-in: 0</p>
     <p id="totalMissed">Total Missed: 0</p>
@@ -97,7 +98,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-   const firebaseConfig = {
+    const firebaseConfig = {
   apiKey: "AIzaSyCUFPclKoarfmkgwF-UAqeeUcd8uTJMcc8",
   authDomain: "welkin--lunite-tracker.firebaseapp.com",
   projectId: "welkin--lunite-tracker",
@@ -105,7 +106,6 @@
   messagingSenderId: "363360135710",
   appId: "1:363360135710:web:2110f0e0987d49c197dc0f",
   measurementId: "G-85E322B6RL"
-};
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -121,6 +121,8 @@
     const resetBtn = document.getElementById("resetBtn");
     const extendBtn = document.getElementById("extendBtn");
     const durationSelect = document.getElementById("durationSelect");
+    const loadingEl = document.getElementById("loading");
+    const statsBox = document.getElementById("statsBox");
 
     const today = new Date();
     let currentMonth = today.getMonth();
@@ -166,8 +168,8 @@
     }
 
     // --- State ---
-    let checkins = await loadCheckins(currentYear, currentMonth);
-    let cycle = await loadCycle();
+    let checkins = {};
+    let cycle = null;
     let streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
 
     // --- UI Logic ---
@@ -288,13 +290,13 @@
       cycleRangeEl.textContent = `Cycle: ${cycle.start} → ${cycle.end} | Days Left: ${daysLeft}`;
     }
 
+    // --- Buttons ---
     resetBtn.addEventListener("click", async () => {
       if (confirm("Reset cycle? This will clear all check-ins, start, end, and streak.")) {
         cycle = null; streak = 0;
         await clearCycle();
         localStorage.setItem("welkinStreak", 0);
 
-        // Clear all local check-ins
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -326,8 +328,25 @@
       renderCalendar();
     });
 
-    populateSelectors();
-    renderCalendar();
+    // --- Init ---
+    async function initApp() {
+      loadingEl.style.display = "block";
+      calendarEl.style.display = "none";
+      statsBox.style.display = "none";
+
+      checkins = await loadCheckins(currentYear, currentMonth);
+      cycle = await loadCycle();
+      streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
+
+      populateSelectors();
+      await renderCalendar();
+
+      loadingEl.style.display = "none";
+      calendarEl.style.display = "grid";
+      statsBox.style.display = "block";
+    }
+
+    initApp();
   </script>
 </body>
 </html>
