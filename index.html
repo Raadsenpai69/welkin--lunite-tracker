@@ -4,79 +4,22 @@
   <meta charset="UTF-8">
   <title>Welkin/Lunite Tracker (Cloud Enabled)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6fa;
-      margin: 0;
-      padding: 20px;
-      color: #333;
-    }
+    body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; padding: 20px; color: #333; }
     h1 { text-align: center; }
-    .controls {
-      text-align: center;
-      margin-bottom: 15px;
-    }
-    select, button {
-      padding: 6px 12px;
-      font-size: 16px;
-      border-radius: 6px;
-      margin: 4px;
-      cursor: pointer;
-    }
-    button {
-      background: #ff5252;
-      color: #fff;
-      border: none;
-    }
+    .controls { text-align: center; margin-bottom: 15px; }
+    select, button { padding: 6px 12px; font-size: 16px; border-radius: 6px; margin: 4px; cursor: pointer; }
+    button { background: #ff5252; color: #fff; border: none; }
     button:hover { opacity: 0.85; }
-    .calendar {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 8px;
-      max-width: 600px;
-      margin: 20px auto;
-    }
-    .day {
-      background: #fff;
-      border: 2px solid #ddd;
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
-      cursor: pointer;
-      transition: 0.2s;
-    }
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; max-width: 600px; margin: 20px auto; }
+    .day { background: #fff; border: 2px solid #ddd; border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; transition: 0.2s; }
     .day.checked { background: #4caf50; color: #fff; border-color: #4caf50; }
-    .day.start   { background: #2196f3; color: #fff; border-color: #2196f3; }
-    .day.end     { background: #1565c0; color: #fff; border-color: #1565c0; }
+    .day.start { background: #2196f3; color: #fff; border-color: #2196f3; }
+    .day.end { background: #1565c0; color: #fff; border-color: #1565c0; }
     .day:hover { transform: scale(1.05); }
-    .stats {
-      max-width: 600px;
-      margin: 20px auto;
-      padding: 15px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
+    .stats { max-width: 600px; margin: 20px auto; padding: 15px; background: #fff; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .stats p { margin: 8px 0; }
-    #loading {
-      text-align: center;
-      font-size: 18px;
-      margin-top: 40px;
-      color: #555;
-    }
-    #debugLog {
-      max-width: 600px;
-      margin: 20px auto;
-      padding: 10px;
-      background: #222;
-      color: #0f0;
-      font-family: monospace;
-      font-size: 13px;
-      border-radius: 8px;
-      white-space: pre-wrap;
-      overflow-y: auto;
-      max-height: 200px;
-    }
+    #loading { text-align: center; font-size: 18px; margin-top: 40px; color: #555; }
+    #debugLog { max-width: 600px; margin: 20px auto; padding: 10px; background: #222; color: #0f0; font-family: monospace; font-size: 13px; border-radius: 8px; white-space: pre-wrap; overflow-y: auto; max-height: 200px; }
   </style>
 </head>
 <body>
@@ -146,102 +89,87 @@
       console.log(msg);
     }
 
+    // Debounced UI refresh (only runs once per 300ms max)
+    let refreshTimeout = null;
+    function scheduleRender() {
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(() => renderCalendar(), 300);
+    }
+
     const today = new Date();
     let currentMonth = today.getMonth();
     let currentYear = today.getFullYear();
+    let checkins = {};
+    let cycle = null;
+    let streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
 
     function getStorageKey(year, month) {
       return `welkinCheckins-${year}-${month}`;
     }
 
     async function saveCheckins(year, month, data) {
-      try { await setDoc(doc(db, "checkins", `${year}-${month}`), data); logDebug(`✔️ Saved checkins online for ${year}-${month}`); }
-      catch(e){ logDebug(`⚠️ Firestore save failed: ${e}`); }
+      try { await setDoc(doc(db, "checkins", `${year}-${month}`), data); logDebug(`✔️ Saved ${year}-${month} online`); }
+      catch(e){ logDebug(`⚠️ Save failed: ${e}`); }
       localStorage.setItem(getStorageKey(year, month), JSON.stringify(data));
     }
 
     async function loadCheckins(year, month) {
       const key = getStorageKey(year, month);
-      let localData = JSON.parse(localStorage.getItem(key)) || {};
-      let resolved = false;
-
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          logDebug(`Loaded ${year}-${month} from localStorage (instant)`);
-        }
-      }, 0);
-
-      try {
-        const snap = await getDoc(doc(db, "checkins", `${year}-${month}`));
+      const localData = JSON.parse(localStorage.getItem(key)) || {};
+      // instant return local
+      logDebug(`📂 Loaded ${year}-${month} from localStorage`);
+      // background sync
+      getDoc(doc(db, "checkins", `${year}-${month}`)).then(snap => {
         if (snap.exists()) {
           const serverData = snap.data();
           localStorage.setItem(key, JSON.stringify(serverData));
-          logDebug(`✔️ Synced ${year}-${month} from Firestore`);
-          return serverData;
+          logDebug(`☁️ Synced ${year}-${month} from Firestore`);
+          scheduleRender();
         }
-      } catch (e) {
-        logDebug(`⚠️ Firestore load failed for ${year}-${month}, using local`);
-      }
+      }).catch(()=> logDebug(`⚠️ Firestore load failed for ${year}-${month}`));
       return localData;
     }
 
     async function saveCycle(data) {
-      try { await setDoc(doc(db, "meta", "cycle"), data); logDebug("✔️ Saved cycle online"); }
-      catch(e){ logDebug("⚠️ Firestore save failed (cycle)"); }
+      try { await setDoc(doc(db, "meta", "cycle"), data); logDebug("✔️ Cycle saved online"); }
+      catch(e){ logDebug("⚠️ Cycle save failed"); }
       localStorage.setItem("welkinCycle", JSON.stringify(data));
     }
 
     async function loadCycle() {
-      let local = JSON.parse(localStorage.getItem("welkinCycle")) || null;
-      let resolved = false;
-
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          logDebug("Loaded cycle from localStorage (instant)");
-        }
-      }, 0);
-
-      try {
-        const snap = await getDoc(doc(db, "meta", "cycle"));
+      const local = JSON.parse(localStorage.getItem("welkinCycle")) || null;
+      logDebug("📂 Cycle loaded from localStorage");
+      getDoc(doc(db, "meta", "cycle")).then(snap => {
         if (snap.exists()) {
           const serverData = snap.data();
           localStorage.setItem("welkinCycle", JSON.stringify(serverData));
-          logDebug("✔️ Synced cycle from Firestore");
-          return serverData;
+          logDebug("☁️ Synced cycle from Firestore");
+          cycle = serverData;
+          scheduleRender();
         }
-      } catch (e) {
-        logDebug("⚠️ Firestore load failed for cycle, using local");
-      }
+      }).catch(()=> logDebug("⚠️ Firestore load failed for cycle"));
       return local;
     }
 
     async function clearCycle() {
-      try { await setDoc(doc(db, "meta", "cycle"), {}); logDebug("✔️ Cleared cycle online"); }
+      try { await setDoc(doc(db, "meta", "cycle"), {}); logDebug("✔️ Cycle cleared online"); }
       catch(e){ logDebug("⚠️ Firestore clear failed"); }
       localStorage.removeItem("welkinCycle");
     }
-
-    let checkins = {};
-    let cycle = null;
-    let streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
 
     function populateSelectors() {
       const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
       monthSelect.innerHTML = "";
       monthNames.forEach((name, i) => {
         const opt = document.createElement("option");
-        opt.value = i;
-        opt.textContent = name;
+        opt.value = i; opt.textContent = name;
         if (i === currentMonth) opt.selected = true;
         monthSelect.appendChild(opt);
       });
       yearSelect.innerHTML = "";
       for (let y = currentYear - 5; y <= currentYear + 5; y++) {
         const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
+        opt.value = y; opt.textContent = y;
         if (y === currentYear) opt.selected = true;
         yearSelect.appendChild(opt);
       }
@@ -256,21 +184,19 @@
         const dayEl = document.createElement("div");
         dayEl.classList.add("day");
         dayEl.textContent = day;
-
-        const dateStr = `${currentYear}-${currentMonth+1}-${day}`;
         if (checkins[day]) dayEl.classList.add("checked");
 
+       [m=>{ }] // omitted
+        const dateStr = `${currentYear}-${currentMonth+1}-${day}`;
         if (cycle) {
           const [sy, sm, sd] = cycle.start.split("-").map(Number);
           const [ey, em, ed] = cycle.end.split("-").map(Number);
           const startDate = new Date(sy, sm-1, sd);
           const endDate = new Date(ey, em-1, ed);
           const currentDate = new Date(currentYear, currentMonth, day);
-
           if (currentDate.getTime() === startDate.getTime()) dayEl.classList.add("start");
           if (currentDate.getTime() === endDate.getTime()) dayEl.classList.add("end");
         }
-
         dayEl.addEventListener("click", () => toggleCheck(day, dateStr));
         calendarEl.appendChild(dayEl);
       }
@@ -288,14 +214,8 @@
         cycle = {start, end};
         await saveCycle(cycle);
       }
-
-      if (checkins[day]) {
-        delete checkins[day];
-        if (streak > 0) streak--;
-      } else {
-        checkins[day] = true;
-        streak++;
-      }
+      if (checkins[day]) { delete checkins[day]; if (streak > 0) streak--; }
+      else { checkins[day] = true; streak++; }
       await saveCheckins(currentYear, currentMonth, checkins);
       localStorage.setItem("welkinStreak", streak);
       renderCalendar();
@@ -309,7 +229,6 @@
         cycleRangeEl.textContent = "Cycle: Not started";
         return;
       }
-
       const [sy, sm, sd] = cycle.start.split("-").map(Number);
       const [ey, em, ed] = cycle.end.split("-").map(Number);
       const startDate = new Date(sy, sm-1, sd);
@@ -319,21 +238,13 @@
       let checked = 0, missed = 0;
       const current = new Date(startDate);
       while (current <= endDate) {
-        const y = current.getFullYear();
-        const m = current.getMonth();
-        const d = current.getDate();
+        const y = current.getFullYear(), m = current.getMonth(), d = current.getDate();
         const data = JSON.parse(localStorage.getItem(getStorageKey(y, m))) || {};
-
-        if (current < today) {
-          if (data[d]) checked++; else missed++;
-        } else if (current.getTime() === today.getTime()) {
-          if (data[d]) checked++;
-        }
-
+        if (current < today) { if (data[d]) checked++; else missed++; }
+        else if (current.getTime() === today.getTime()) { if (data[d]) checked++; }
         current.setDate(current.getDate() + 1);
       }
-
-      let daysLeft = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)) + 1);
+      let daysLeft = Math.max(0, Math.ceil((endDate - today)/(1000*60*60*24))+1);
       const todayData = JSON.parse(localStorage.getItem(getStorageKey(today.getFullYear(), today.getMonth()))) || {};
       if (todayData[today.getDate()]) daysLeft--;
 
@@ -344,25 +255,17 @@
     }
 
     resetBtn.addEventListener("click", async () => {
-      if (confirm("Reset cycle? This will clear all check-ins, start, end, and streak.")) {
+      if (confirm("Reset cycle?")) {
         cycle = null; streak = 0;
-        await clearCycle();
-        localStorage.setItem("welkinStreak", 0);
-
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith("welkinCheckins-")) keysToRemove.push(key);
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-
-        logDebug("Cycle and all check-ins reset");
+        await clearCycle(); localStorage.setItem("welkinStreak", 0);
+        Object.keys(localStorage).forEach(k=>{ if(k.startsWith("welkinCheckins-")) localStorage.removeItem(k); });
+        logDebug("Cycle and check-ins reset");
         renderCalendar();
       }
     });
 
     extendBtn.addEventListener("click", async () => {
-      if (!cycle) { alert("No active cycle to extend."); return; }
+      if (!cycle) { alert("No active cycle"); return; }
       const duration = parseInt(durationSelect.value);
       const [ey, em, ed] = cycle.end.split("-").map(Number);
       let endDate = new Date(ey, em-1, ed);
@@ -373,31 +276,17 @@
       renderCalendar();
     });
 
-    monthSelect.addEventListener("change", (e) => {
-      currentMonth = parseInt(e.target.value);
-      renderCalendar();
-    });
-    yearSelect.addEventListener("change", (e) => {
-      currentYear = parseInt(e.target.value);
-      renderCalendar();
-    });
+    monthSelect.addEventListener("change", e => { currentMonth = parseInt(e.target.value); renderCalendar(); });
+    yearSelect.addEventListener("change", e => { currentYear = parseInt(e.target.value); renderCalendar(); });
 
     async function initApp() {
-      loadingEl.style.display = "block";
-      calendarEl.style.display = "none";
-      statsBox.style.display = "none";
-
+      loadingEl.style.display="block"; calendarEl.style.display="none"; statsBox.style.display="none";
       checkins = await loadCheckins(currentYear, currentMonth);
       cycle = await loadCycle();
       streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
-
-      populateSelectors();
-      await renderCalendar();
-
-      loadingEl.style.display = "none";
-      calendarEl.style.display = "grid";
-      statsBox.style.display = "block";
-      logDebug("App initialized");
+      populateSelectors(); await renderCalendar();
+      loadingEl.style.display="none"; calendarEl.style.display="grid"; statsBox.style.display="block";
+      logDebug("✅ App initialized fast");
     }
 
     initApp();
