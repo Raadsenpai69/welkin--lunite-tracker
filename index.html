@@ -169,7 +169,6 @@
         if (!resolved) {
           resolved = true;
           logDebug(`Loaded ${year}-${month} from localStorage (instant)`);
-          renderCalendar();
         }
       }, 0);
 
@@ -179,22 +178,10 @@
           const serverData = snap.data();
           localStorage.setItem(key, JSON.stringify(serverData));
           logDebug(`✔️ Synced ${year}-${month} from Firestore`);
-
-          if (!resolved) {
-            resolved = true;
-            return serverData;
-          } else {
-            checkins = serverData;
-            renderCalendar();
-          }
+          return serverData;
         }
       } catch (e) {
         logDebug(`⚠️ Firestore load failed for ${year}-${month}, using local`);
-      }
-
-      if (!resolved) {
-        resolved = true;
-        return localData;
       }
       return localData;
     }
@@ -213,7 +200,6 @@
         if (!resolved) {
           resolved = true;
           logDebug("Loaded cycle from localStorage (instant)");
-          renderCalendar();
         }
       }, 0);
 
@@ -223,22 +209,10 @@
           const serverData = snap.data();
           localStorage.setItem("welkinCycle", JSON.stringify(serverData));
           logDebug("✔️ Synced cycle from Firestore");
-
-          if (!resolved) {
-            resolved = true;
-            return serverData;
-          } else {
-            cycle = serverData;
-            renderCalendar();
-          }
+          return serverData;
         }
       } catch (e) {
         logDebug("⚠️ Firestore load failed for cycle, using local");
-      }
-
-      if (!resolved) {
-        resolved = true;
-        return local;
       }
       return local;
     }
