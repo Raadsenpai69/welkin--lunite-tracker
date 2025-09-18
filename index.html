@@ -173,24 +173,6 @@
     let cycle = null;
     let streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
 
-    // --- Cache loader for all months in a range ---
-    async function getAllCheckinsInRange(startDate, endDate) {
-      let allCheckins = {};
-      const current = new Date(startDate);
-
-      while (current <= endDate) {
-        const y = current.getFullYear();
-        const m = current.getMonth();
-
-        if (!allCheckins[`${y}-${m}`]) {
-          allCheckins[`${y}-${m}`] = await loadCheckins(y, m);
-        }
-        current.setMonth(current.getMonth() + 1);
-      }
-
-      return allCheckins;
-    }
-
     // --- UI Logic ---
     function populateSelectors() {
       const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -281,27 +263,26 @@
       const endDate = new Date(ey, em-1, ed);
       const today = new Date(); today.setHours(0,0,0,0);
 
-      const checkinCache = await getAllCheckinsInRange(startDate, endDate);
-
-      let checked = 0, missed = 0;
+      let checked = 0, missed = 0, totalDays = 0;
       const current = new Date(startDate);
       while (current <= endDate) {
         const y = current.getFullYear();
         const m = current.getMonth();
         const d = current.getDate();
+        const data = await loadCheckins(y, m);
 
-        const data = checkinCache[`${y}-${m}`] || {};
         if (current < today) {
           if (data[d]) checked++; else missed++;
         } else if (current.getTime() === today.getTime()) {
           if (data[d]) checked++;
         }
 
+        totalDays++;
         current.setDate(current.getDate() + 1);
       }
 
       let daysLeft = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)) + 1);
-      const todayData = checkinCache[`${today.getFullYear()}-${today.getMonth()}`] || {};
+      const todayData = await loadCheckins(today.getFullYear(), today.getMonth());
       if (todayData[today.getDate()]) daysLeft--;
 
       totalCheckedEl.textContent = "Total Checked-in: " + checked;
