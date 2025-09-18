@@ -175,7 +175,7 @@
     // --- Cache loader for all months in a range ---
     async function getAllCheckinsInRange(startDate, endDate) {
       let allCheckins = {};
-      const current = new Date(startDate);
+      const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1); // normalize to day 1
 
       while (current <= endDate) {
         const y = current.getFullYear();
@@ -184,7 +184,8 @@
         if (!allCheckins[`${y}-${m}`]) {
           allCheckins[`${y}-${m}`] = await loadCheckins(y, m);
         }
-        current.setMonth(current.getMonth() + 1);
+
+        current.setMonth(current.getMonth() + 1, 1); // always move to first of next month
       }
 
       return allCheckins;
