@@ -52,7 +52,8 @@
     // 🔧 Replace with your JSONBin info (optional)
     const BIN_ID = "68cccb63d0ea881f4082b44f";
     const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-    const headers = { "Content-Type": "application/json" };
+    const headers = { "Content-Type": "application/json"
+                      "X-Master-Key": "$2a$10$f00SG0AELOEcKImV9ojgQ.BTSIBNPg0Huw/Si7NwtP51hJLjS2hmy" };
 
     const calendarEl = document.getElementById("calendar");
     const totalCheckedEl = document.getElementById("totalChecked");
@@ -86,26 +87,33 @@
 
     // ✅ JSONBin sync
     async function loadData() {
-      try {
-        const res = await fetch(BASE_URL + "/latest", { headers });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const json = await res.json();
-        data = json.record;
-        console.log("☁️ Synced from JSONBin:", data);
-        saveLocal();
-      } catch (e) {
-        console.warn("⚠️ JSONBin not available, using local data:", e);
-      }
-    }
+  try {
+    const res = await fetch(BASE_URL + "/latest", { headers });
+    if (!res.ok) throw new Error("Load failed: " + res.status);
+    const json = await res.json();
+    data = json.record;
+    console.log("☁️ Loaded from JSONBin:", data);
+    saveLocal();
+  } catch (e) {
+    console.error("❌ Failed to load JSONBin:", e);
+  }
+}
+
     async function saveData() {
-      try {
-        await fetch(BASE_URL, { method: "PUT", headers, body: JSON.stringify(data) });
-        console.log("☁️ Saved to JSONBin");
-      } catch (e) {
-        console.warn("⚠️ Failed to save to JSONBin, keeping local:", e);
-      }
-      saveLocal();
-    }
+  try {
+    const res = await fetch(BASE_URL, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error("Save failed: " + res.status);
+    console.log("☁️ Saved to JSONBin:", await res.json());
+  } catch (e) {
+    console.error("❌ Failed to save JSONBin:", e);
+  }
+  saveLocal();
+}
+
 
     // ✅ UI setup
     function populateSelectors() {
