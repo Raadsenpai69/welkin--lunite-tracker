@@ -4,80 +4,20 @@
   <meta charset="UTF-8">
   <title>Welkin Moon Tracker</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6fa;
-      margin: 0;
-      padding: 20px;
-      color: #333;
-    }
-    h1 {
-      text-align: center;
-    }
-    .controls {
-      text-align: center;
-      margin-bottom: 15px;
-    }
-    select, button {
-      padding: 6px 12px;
-      font-size: 16px;
-      border-radius: 6px;
-      margin: 4px;
-      cursor: pointer;
-    }
-    button {
-      background: #ff5252;
-      color: #fff;
-      border: none;
-    }
-    button:hover {
-      opacity: 0.85;
-    }
-    .calendar {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 8px;
-      max-width: 600px;
-      margin: 20px auto;
-    }
-    .day {
-      background: #fff;
-      border: 2px solid #ddd;
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-    .day.checked {
-      background: #4caf50; /* green */
-      color: #fff;
-      border-color: #4caf50;
-    }
-    .day.start {
-      background: #2196f3; /* blue */
-      color: #fff;
-      border-color: #2196f3;
-    }
-    .day.end {
-      background: #1565c0; /* dark blue */
-      color: #fff;
-      border-color: #1565c0;
-    }
-    .day:hover {
-      transform: scale(1.05);
-    }
-    .stats {
-      max-width: 600px;
-      margin: 20px auto;
-      padding: 15px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .stats p {
-      margin: 8px 0;
-    }
+    body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; padding: 20px; color: #333; }
+    h1 { text-align: center; }
+    .controls { text-align: center; margin-bottom: 15px; }
+    select, button { padding: 6px 12px; font-size: 16px; border-radius: 6px; margin: 4px; cursor: pointer; }
+    button { background: #ff5252; color: #fff; border: none; }
+    button:hover { opacity: 0.85; }
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; max-width: 600px; margin: 20px auto; }
+    .day { background: #fff; border: 2px solid #ddd; border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; transition: 0.2s; }
+    .day.checked { background: #4caf50; color: #fff; border-color: #4caf50; }
+    .day.start { background: #2196f3; color: #fff; border-color: #2196f3; }
+    .day.end { background: #1565c0; color: #fff; border-color: #1565c0; }
+    .day:hover { transform: scale(1.05); }
+    .stats { max-width: 600px; margin: 20px auto; padding: 15px; background: #fff; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .stats p { margin: 8px 0; }
   </style>
 </head>
 <body>
@@ -94,6 +34,7 @@
     </select>
     <button id="extendBtn">Extend Cycle</button>
     <button id="resetBtn">Reset Cycle</button>
+    <button id="syncBtn">Sync Now</button>
   </div>
 
   <div class="calendar" id="calendar"></div>
@@ -107,6 +48,11 @@
   </div>
 
   <script>
+    // 🔧 Replace this with your JSONBin ID
+    const BIN_ID = "68cccb63d0ea881f4082b44f";
+    const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+    const headers = { "Content-Type": "application/json" };
+
     const calendarEl = document.getElementById("calendar");
     const totalCheckedEl = document.getElementById("totalChecked");
     const totalMissedEl = document.getElementById("totalMissed");
@@ -116,40 +62,39 @@
     const yearSelect = document.getElementById("yearSelect");
     const resetBtn = document.getElementById("resetBtn");
     const extendBtn = document.getElementById("extendBtn");
+    const syncBtn = document.getElementById("syncBtn");
     const durationSelect = document.getElementById("durationSelect");
 
     const today = new Date();
     let currentMonth = today.getMonth();
     let currentYear = today.getFullYear();
 
-    function getStorageKey(year, month) {
-      return `welkinCheckins-${year}-${month}`;
-    }
-    function loadCheckins(year, month) {
-      return JSON.parse(localStorage.getItem(getStorageKey(year, month))) || {};
-    }
-    function saveCheckins(year, month, data) {
-      localStorage.setItem(getStorageKey(year, month), JSON.stringify(data));
-    }
-    function loadCycle() {
-      return JSON.parse(localStorage.getItem("welkinCycle")) || null;
-    }
-    function saveCycle(data) {
-      localStorage.setItem("welkinCycle", JSON.stringify(data));
-    }
-    function clearCycle() {
-      localStorage.removeItem("welkinCycle");
+    let data = { checkins: {}, cycle: null, streak: 0 };
+
+    async function loadData() {
+      try {
+        const res = await fetch(BASE_URL + "/latest");
+        const json = await res.json();
+        data = json.record;
+      } catch (e) {
+        console.error("Failed to load JSONBin:", e);
+      }
     }
 
-    let checkins = loadCheckins(currentYear, currentMonth);
-    let cycle = loadCycle();
-    let streak = parseInt(localStorage.getItem("welkinStreak")) || 0;
+    async function saveData() {
+      try {
+        await fetch(BASE_URL, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(data)
+        });
+      } catch (e) {
+        console.error("Failed to save JSONBin:", e);
+      }
+    }
 
     function populateSelectors() {
-      const monthNames = [
-        "January","February","March","April","May","June",
-        "July","August","September","October","November","December"
-      ];
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
       monthSelect.innerHTML = "";
       monthNames.forEach((name, i) => {
         const opt = document.createElement("option");
@@ -171,20 +116,18 @@
     function renderCalendar() {
       calendarEl.innerHTML = "";
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      checkins = loadCheckins(currentYear, currentMonth);
+      const checkins = data.checkins[`${currentYear}-${currentMonth}`] || {};
 
       for (let day = 1; day <= daysInMonth; day++) {
         const dayEl = document.createElement("div");
         dayEl.classList.add("day");
         dayEl.textContent = day;
 
-        const dateStr = `${currentYear}-${currentMonth+1}-${day}`;
-
         if (checkins[day]) dayEl.classList.add("checked");
 
-        if (cycle) {
-          const [sy, sm, sd] = cycle.start.split("-").map(Number);
-          const [ey, em, ed] = cycle.end.split("-").map(Number);
+        if (data.cycle) {
+          const [sy, sm, sd] = data.cycle.start.split("-").map(Number);
+          const [ey, em, ed] = data.cycle.end.split("-").map(Number);
           const startDate = new Date(sy, sm-1, sd);
           const endDate = new Date(ey, em-1, ed);
           const currentDate = new Date(currentYear, currentMonth, day);
@@ -193,136 +136,121 @@
           if (currentDate.getTime() === endDate.getTime()) dayEl.classList.add("end");
         }
 
-        dayEl.addEventListener("click", () => toggleCheck(day, dateStr));
+        dayEl.addEventListener("click", () => toggleCheck(day));
         calendarEl.appendChild(dayEl);
       }
       updateStats();
     }
 
-    function toggleCheck(day, dateStr) {
-      if (!cycle) {
-        const start = dateStr;
+    async function toggleCheck(day) {
+      const key = `${currentYear}-${currentMonth}`;
+      if (!data.checkins[key]) data.checkins[key] = {};
+
+      if (!data.cycle) {
+        const start = `${currentYear}-${currentMonth+1}-${day}`;
         const startDate = new Date(currentYear, currentMonth, day);
         const duration = parseInt(durationSelect.value);
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + duration - 1);
-
         const end = `${endDate.getFullYear()}-${endDate.getMonth()+1}-${endDate.getDate()}`;
-        cycle = {start, end};
-        saveCycle(cycle);
+        data.cycle = { start, end };
       }
 
-      if (checkins[day]) {
-        delete checkins[day];
-        if (streak > 0) streak--;
+      if (data.checkins[key][day]) {
+        delete data.checkins[key][day];
+        if (data.streak > 0) data.streak--;
       } else {
-        checkins[day] = true;
-        streak++;
+        data.checkins[key][day] = true;
+        data.streak++;
       }
-      saveCheckins(currentYear, currentMonth, checkins);
-      localStorage.setItem("welkinStreak", streak);
+      await saveData();
       renderCalendar();
     }
 
     function updateStats() {
-      if (!cycle) {
+      if (!data.cycle) {
         totalCheckedEl.textContent = "Total Checked-in: 0";
         totalMissedEl.textContent = "Total Missed: 0";
-        streakEl.textContent = "Current Streak: " + streak;
+        streakEl.textContent = "Current Streak: " + data.streak;
         cycleRangeEl.textContent = "Cycle: Not started";
         return;
       }
 
-      const [sy, sm, sd] = cycle.start.split("-").map(Number);
-      const [ey, em, ed] = cycle.end.split("-").map(Number);
+      const [sy, sm, sd] = data.cycle.start.split("-").map(Number);
+      const [ey, em, ed] = data.cycle.end.split("-").map(Number);
       const startDate = new Date(sy, sm-1, sd);
       const endDate = new Date(ey, em-1, ed);
       const today = new Date();
       today.setHours(0,0,0,0);
 
-      let checked = 0;
-      let missed = 0;
-      let totalDays = 0;
-
+      let checked = 0, missed = 0;
       const current = new Date(startDate);
+
       while (current <= endDate) {
         const y = current.getFullYear();
         const m = current.getMonth();
         const d = current.getDate();
-        const data = loadCheckins(y, m);
+        const key = `${y}-${m}`;
+        const checkins = data.checkins[key] || {};
 
         if (current < today) {
-          if (data[d]) checked++;
-          else missed++;
+          if (checkins[d]) checked++; else missed++;
         } else if (current.getTime() === today.getTime()) {
-          if (data[d]) checked++;
+          if (checkins[d]) checked++;
         }
-
-        totalDays++;
         current.setDate(current.getDate() + 1);
       }
 
       let daysLeft = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)) + 1);
-
-      // If today is already checked in, don't count it as a future day
-      const todayData = loadCheckins(today.getFullYear(), today.getMonth());
-      if (todayData[today.getDate()]) {
-        daysLeft -= 1;
-      }
+      const todayKey = `${today.getFullYear()}-${today.getMonth()}`;
+      if (data.checkins[todayKey] && data.checkins[todayKey][today.getDate()]) daysLeft--;
 
       totalCheckedEl.textContent = "Total Checked-in: " + checked;
       totalMissedEl.textContent = "Total Missed: " + missed;
-      streakEl.textContent = "Current Streak: " + streak;
-      cycleRangeEl.textContent = `Cycle: ${cycle.start} → ${cycle.end} | Days Left: ${daysLeft}`;
+      streakEl.textContent = "Current Streak: " + data.streak;
+      cycleRangeEl.textContent = `Cycle: ${data.cycle.start} → ${data.cycle.end} | Days Left: ${daysLeft}`;
     }
 
-    resetBtn.addEventListener("click", () => {
+    resetBtn.addEventListener("click", async () => {
       if (confirm("Reset cycle? This will clear all check-ins, start, end, and streak.")) {
-        // Clear cycle data
-        cycle = null;
-        streak = 0;
-        clearCycle();
-        localStorage.setItem("welkinStreak", 0);
-
-        // Clear all check-ins across all months
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith("welkinCheckins-")) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-
+        data = { checkins: {}, cycle: null, streak: 0 };
+        await saveData();
         renderCalendar();
       }
     });
 
-    extendBtn.addEventListener("click", () => {
-      if (!cycle) {
-        alert("No active cycle to extend.");
-        return;
-      }
+    extendBtn.addEventListener("click", async () => {
+      if (!data.cycle) { alert("No active cycle to extend."); return; }
       const duration = parseInt(durationSelect.value);
-      const [ey, em, ed] = cycle.end.split("-").map(Number);
+      const [ey, em, ed] = data.cycle.end.split("-").map(Number);
       let endDate = new Date(ey, em-1, ed);
       endDate.setDate(endDate.getDate() + duration);
-      cycle.end = `${endDate.getFullYear()}-${endDate.getMonth()+1}-${endDate.getDate()}`;
-      saveCycle(cycle);
+      data.cycle.end = `${endDate.getFullYear()}-${endDate.getMonth()+1}-${endDate.getDate()}`;
+      await saveData();
       renderCalendar();
     });
 
-    monthSelect.addEventListener("change", (e) => {
-      currentMonth = parseInt(e.target.value);
+    syncBtn.addEventListener("click", async () => {
+      await loadData();
       renderCalendar();
-    });
-    yearSelect.addEventListener("change", (e) => {
-      currentYear = parseInt(e.target.value);
-      renderCalendar();
+      alert("Data synced from server!");
     });
 
-    populateSelectors();
-    renderCalendar();
+    monthSelect.addEventListener("change", e => { currentMonth = parseInt(e.target.value); renderCalendar(); });
+    yearSelect.addEventListener("change", e => { currentYear = parseInt(e.target.value); renderCalendar(); });
+
+    (async () => {
+      await loadData();
+      populateSelectors();
+      renderCalendar();
+    })();
+
+    // 🔄 Auto-sync every 5 minutes
+    setInterval(async () => {
+      await loadData();
+      renderCalendar();
+      console.log("Auto-synced from server");
+    }, 1 * 60 * 1000);
   </script>
 </body>
 </html>
