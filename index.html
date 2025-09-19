@@ -47,13 +47,14 @@
     <p id="cycleRange">Cycle: Not started</p>
   </div>
 
-  <!-- Your script goes here -->
   <script>
-    // 🔧 Replace with your JSONBin info (optional)
-    const BIN_ID = "68cccb63d0ea881f4082b44f";
+    // 🔧 Replace with your JSONBin info
+    const BIN_ID = "68cccb63d0ea881f4082b44f"; 
     const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-    const headers = { "Content-Type": "application/json"
-                      "X-Master-Key": "$2a$10$f00SG0AELOEcKImV9ojgQ.BTSIBNPg0Huw/Si7NwtP51hJLjS2hmy" };
+    const headers = { 
+      "Content-Type": "application/json",
+      "X-Master-Key": "$2a$10$f00SG0AELOEcKImV9ojgQ.BTSIBNPg0Huw/Si7NwtP51hJLjS2hmy"  // from jsonbin.io dashboard
+    };
 
     const calendarEl = document.getElementById("calendar");
     const totalCheckedEl = document.getElementById("totalChecked");
@@ -73,7 +74,7 @@
 
     let data = { checkins: {}, cycle: null, streak: 0 };
 
-    // ✅ Local storage helpers
+    // Local storage helpers
     function saveLocal() {
       localStorage.setItem("welkinTracker", JSON.stringify(data));
     }
@@ -85,37 +86,35 @@
       }
     }
 
-    // ✅ JSONBin sync
+    // JSONBin sync
     async function loadData() {
-  try {
-    const res = await fetch(BASE_URL + "/latest", { headers });
-    if (!res.ok) throw new Error("Load failed: " + res.status);
-    const json = await res.json();
-    data = json.record;
-    console.log("☁️ Loaded from JSONBin:", data);
-    saveLocal();
-  } catch (e) {
-    console.error("❌ Failed to load JSONBin:", e);
-  }
-}
-
+      try {
+        const res = await fetch(BASE_URL + "/latest", { headers });
+        if (!res.ok) throw new Error("Load failed: " + res.status);
+        const json = await res.json();
+        data = json.record;
+        console.log("☁️ Loaded from JSONBin:", data);
+        saveLocal();
+      } catch (e) {
+        console.error("❌ Failed to load from JSONBin:", e.message);
+      }
+    }
     async function saveData() {
-  try {
-    const res = await fetch(BASE_URL, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error("Save failed: " + res.status);
-    console.log("☁️ Saved to JSONBin:", await res.json());
-  } catch (e) {
-    console.error("❌ Failed to save JSONBin:", e);
-  }
-  saveLocal();
-}
+      try {
+        const res = await fetch(BASE_URL, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error("Save failed: " + res.status);
+        console.log("☁️ Saved to JSONBin:", await res.json());
+      } catch (e) {
+        console.error("❌ Failed to save to JSONBin:", e.message);
+      }
+      saveLocal();
+    }
 
-
-    // ✅ UI setup
+    // UI setup
     function populateSelectors() {
       const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
       monthSelect.innerHTML = "";
@@ -234,7 +233,7 @@
       cycleRangeEl.textContent = `Cycle: ${data.cycle.start} → ${data.cycle.end} | Days Left: ${daysLeft}`;
     }
 
-    // ✅ Buttons
+    // Button events
     resetBtn.addEventListener("click", async () => {
       if (confirm("Reset cycle?")) {
         data = { checkins: {}, cycle: null, streak: 0 };
@@ -255,23 +254,25 @@
     syncBtn.addEventListener("click", async () => {
       await loadData();
       renderCalendar();
-      alert("Data synced from server!");
+      alert("✅ Data synced from server!");
     });
     monthSelect.addEventListener("change", e => { currentMonth = parseInt(e.target.value); renderCalendar(); });
     yearSelect.addEventListener("change", e => { currentYear = parseInt(e.target.value); renderCalendar(); });
 
-    // ✅ Startup
+    // Startup
     (async () => {
-      loadLocal();
-      await loadData();
+      loadLocal();        // load local first
       populateSelectors();
-      renderCalendar();
+      renderCalendar();   // always show instantly
+      await loadData();   // try syncing from cloud
+      renderCalendar();   // refresh if sync worked
     })();
 
+    // Auto-sync every 5 minutes
     setInterval(async () => {
       await loadData();
       renderCalendar();
-      console.log("Auto-synced from server");
+      console.log("🔄 Auto-synced from server");
     }, 5 * 60 * 1000);
   </script>
 </body>
