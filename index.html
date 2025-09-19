@@ -51,7 +51,8 @@
     // 🔧 Replace this with your JSONBin ID
     const BIN_ID = "68cccb63d0ea881f4082b44f";
     const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-    const headers = { "Content-Type": "application/json" };
+    const headers = { "Content-Type": "application/json"
+                      "X-Master-Key": "$2a$10$f00SG0AELOEcKImV9ojgQ.BTSIBNPg0Huw/Si7NwtP51hJLjS2hmy" };
 
     const calendarEl = document.getElementById("calendar");
     const totalCheckedEl = document.getElementById("totalChecked");
